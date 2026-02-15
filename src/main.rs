@@ -5,6 +5,7 @@ mod db;
 mod models;
 mod middleware;
 mod services;
+mod utils;
 
 use axum::{
     routing::get,
