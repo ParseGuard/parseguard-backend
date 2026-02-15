@@ -1,108 +1,122 @@
 use axum::{
+    body::Body,
     extract::Request,
     middleware::Next,
     response::Response,
 };
+use bytes::Bytes;
 use std::time::Instant;
+use tracing::{info, warn, error};
 use uuid::Uuid;
 
-/// Request ID header key
+/// Custom header for request ID
 pub const X_REQUEST_ID: &str = "x-request-id";
 
-/// Logger middleware for tracking requests
-///
-/// Adds request ID to each request and logs request/response details
-///
-/// # Arguments
-///
-/// * `req` - Incoming HTTP request
-/// * `next` - Next middleware in chain
-///
-/// # Returns
-///
-/// HTTP response with request ID header
-pub async fn logger_middleware(mut req: Request, next: Next) -> Response {
+/// Logger middleware
+/// Logs incoming requests with method, path, request body, and request ID
+pub async fn logger_middleware(req: Request, next: Next) -> Response {
     let start = Instant::now();
-    
-    // Generate or extract request ID
-    let request_id = req
-        .headers()
-        .get(X_REQUEST_ID)
-        .and_then(|v| v.to_str().ok())
-        .and_then(|s| Uuid::parse_str(s).ok())
-        .unwrap_or_else(Uuid::new_v4);
-
     let method = req.method().clone();
     let uri = req.uri().clone();
     let path = uri.path().to_string();
+    let request_id = Uuid::new_v4();
 
-    // Log incoming request
-    tracing::info!(
-        request_id = %request_id,
-        method = %method,
-        path = %path,
-        "Incoming request"
+    // Log request start with emoji
+    info!(
+        "🔵 Incoming: {} {} | Request ID: {}",
+        method,
+        path,
+        request_id
     );
 
-    // Store request ID in extensions for handlers to access
-    req.extensions_mut().insert(request_id);
-
-    // Process request
-    let response = next.run(req).await;
+    // Extract and log body for POST/PUT/PATCH requests
+    let (parts, body) = req.into_parts();
     
-    // Calculate duration
+    if method == "POST" || method == "PUT" || method == "PATCH" {
+        // Read the body bytes
+        let bytes = match axum::body::to_bytes(body, usize::MAX).await {
+            Ok(bytes) => bytes,
+            Err(err) => {
+                error!("❌ Failed to read request body: {}", err);
+                Bytes::new()
+            }
+        };
+
+        // Try to log as JSON
+        if !bytes.is_empty() {
+            if let Ok(body_str) = std::str::from_utf8(&bytes) {
+                info!("📦 Request Body: {}", body_str);
+                
+                // Pretty print JSON if valid
+                if let Ok(json_value) = serde_json::from_str::<serde_json::Value>(body_str) {
+                    if let Ok(pretty) = serde_json::to_string_pretty(&json_value) {
+                        info!("📋 Parsed Body:\n{}", pretty);
+                    }
+                }
+            }
+        }
+
+        // Reconstruct request with body
+        let new_body = Body::from(bytes);
+        let mut req = Request::from_parts(parts, new_body);
+        
+        // Add request ID to extensions
+        req.extensions_mut().insert(request_id);
+        
+        // Process request
+        let response = next.run(req).await;
+        
+        log_response(&method, &path, request_id, start, &response);
+        
+        response
+    } else {
+        // For GET/DELETE, just pass through
+        let mut req = Request::from_parts(parts, body);
+        req.extensions_mut().insert(request_id);
+        
+        let response = next.run(req).await;
+        
+        log_response(&method, &path, request_id, start, &response);
+        
+        response
+    }
+}
+
+/// Log response with appropriate emoji based on status code
+fn log_response(
+    method: &axum::http::Method,
+    path: &str,
+    request_id: Uuid,
+    start: Instant,
+    response: &Response,
+) {
     let duration = start.elapsed();
     let status = response.status();
 
-    // Log response with appropriate level based on status
-    if status.is_server_error() {
-        tracing::error!(
-            request_id = %request_id,
-            method = %method,
-            path = %path,
-            status = %status.as_u16(),
-            duration_ms = duration.as_millis(),
-            "Request completed with server error"
+    if status.is_success() {
+        info!(
+            "✅ Response: {} {} | Status: {} | Duration: {:?} | Request ID: {}",
+            method, path, status.as_u16(), duration, request_id
         );
     } else if status.is_client_error() {
-        tracing::warn!(
-            request_id = %request_id,
-            method = %method,
-            path = %path,
-            status = %status.as_u16(),
-            duration_ms = duration.as_millis(),
-            "Request completed with client error"
+        warn!(
+            "❌ Response: {} {} | Status: {} | Duration: {:?} | Request ID: {}",
+            method, path, status.as_u16(), duration, request_id
+        );
+    } else if status.is_server_error() {
+        error!(
+            "🔥 Response: {} {} | Status: {} | Duration: {:?} | Request ID: {}",
+            method, path, status.as_u16(), duration, request_id
         );
     } else {
-        tracing::info!(
-            request_id = %request_id,
-            method = %method,
-            path = %path,
-            status = %status.as_u16(),
-            duration_ms = duration.as_millis(),
-            "Request completed successfully"
+        info!(
+            "ℹ️  Response: {} {} | Status: {} | Duration: {:?} | Request ID: {}",
+            method, path, status.as_u16(), duration, request_id
         );
     }
-
-    // Add request ID to response headers
-    let (mut parts, body) = response.into_parts();
-    parts.headers.insert(
-        X_REQUEST_ID,
-        request_id.to_string().parse().unwrap(),
-    );
-
-    Response::from_parts(parts, body)
 }
 
-/// Get request ID from request extensions
-///
-/// # Arguments
-///
-/// * `req` - HTTP request
-///
-/// # Returns
-///
-/// Request ID if present, None otherwise
+/// Extract request ID from request extensions
 pub fn get_request_id(req: &Request) -> Option<Uuid> {
     req.extensions().get::<Uuid>().copied()
 }

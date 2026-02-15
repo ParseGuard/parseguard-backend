@@ -27,15 +27,23 @@ pub async fn register(
     State(state): State<AppState>,
     Json(dto): Json<CreateUserDto>,
 ) -> AppResult<(StatusCode, Json<AuthResponse>)> {
+    // Log incoming registration attempt
+    tracing::info!("🔐 Registration attempt | Email: {}", dto.email);
+    tracing::debug!("📝 Registration data | Name: {}, Email: {}", dto.name, dto.email);
+    
     // Validate input
     dto.validate()
-        .map_err(|e| AppError::Validation(e.to_string()))?;
+        .map_err(|e| {
+            tracing::error!("❌ Validation failed: {}", e);
+            AppError::Validation(e.to_string())
+        })?;
 
     let user_repo = UserRepository::new(state.pool.clone());
     let auth_service = AuthService::new(state.config.jwt_secret.clone());
 
     // Check if email already exists
     if user_repo.email_exists(&dto.email).await? {
+        tracing::warn!("⚠️  Email already registered: {}", dto.email);
         return Err(AppError::Validation("Email already registered".to_string()));
     }
 
