@@ -13,6 +13,58 @@ use crate::{
     AppState,
 };
 
+/// DTO for creating document from text
+#[derive(serde::Deserialize)]
+pub struct CreateTextDocumentDto {
+    pub title: String,
+    pub content: String,
+}
+
+/// Create document from text content
+pub async fn create_from_text(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Json(dto): Json<CreateTextDocumentDto>,
+) -> AppResult<(StatusCode, Json<Document>)> {
+    let user_id = Uuid::parse_str(&claims.sub)
+        .map_err(|_| AppError::Internal("Invalid user ID in token".to_string()))?;
+
+    // valid filename
+    let safe_filename = dto.title
+        .chars()
+        .map(|c| if c.is_alphanumeric() || c == '-' || c == '_' { c } else { '_' })
+        .collect::<String>();
+    let filename = format!("{}.txt", safe_filename);
+    let unique_id = Uuid::new_v4();
+    let stored_filename = format!("{}_{}", unique_id, filename);
+    let file_path = std::path::Path::new(&state.config.upload_dir).join(&stored_filename);
+
+    // Ensure upload directory exists
+    tokio::fs::create_dir_all(&state.config.upload_dir)
+        .await
+        .map_err(|e| AppError::Internal(format!("Failed to create upload dir: {}", e)))?;
+
+    // Write file
+    tokio::fs::write(&file_path, &dto.content)
+        .await
+        .map_err(|e| AppError::Internal(format!("Failed to save file: {}", e)))?;
+
+    let file_size = dto.content.len() as i64;
+
+    let create_dto = CreateDocumentDto {
+        filename,
+        file_path: file_path.to_string_lossy().to_string(),
+        file_size,
+        mime_type: "text/plain".to_string(),
+        extracted_text: Some(dto.content),
+    };
+
+    let repo = DocumentRepository::new(state.pool.clone());
+    let document = repo.create(user_id, &create_dto).await?;
+
+    Ok((StatusCode::CREATED, Json(document)))
+}
+
 /// Get all documents for authenticated user
 ///
 /// # Arguments

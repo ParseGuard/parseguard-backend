@@ -41,6 +41,7 @@ pub fn create_router(state: AppState) -> Router {
         // Documents
         .route("/documents", get(documents::list_documents))
         .route("/documents", post(documents::create_document))
+        .route("/documents/text", post(documents::create_from_text))
         .route("/documents/:id", get(documents::get_document))
         .route("/documents/:id", put(documents::update_document))
         .route("/documents/:id", delete(documents::delete_document))

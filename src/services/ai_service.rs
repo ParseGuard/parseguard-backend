@@ -83,8 +83,13 @@ impl AiService {
     /// AI service instance
     pub fn new(ollama_url: String) -> Self {
         info!("🤖 AiService started");
+        let client = Client::builder()
+            .timeout(std::time::Duration::from_secs(300))
+            .build()
+            .unwrap_or_else(|_| Client::new());
+
         Self {
-            client: Client::new(),
+            client,
             base_url: ollama_url,
         }
     }
@@ -234,9 +239,28 @@ impl AiService {
             }),
             compliance_topics: self.extract_list(response, "compliance topics"),
             risk_indicators: self.extract_list(response, "risk"),
-            suggested_items: vec![], // TODO: Implement structured parsing
+            suggested_items: self.extract_suggested_items(response),
             confidence: 0.7, // Default confidence
         })
+    }
+
+    /// Extract suggested items from response
+    fn extract_suggested_items(&self, text: &str) -> Vec<SuggestedComplianceItem> {
+        let items_section = self.extract_list(text, "suggested");
+        
+        items_section.into_iter().map(|item| {
+            // Simple parsing to split title/desc if possible, otherwise use whole line as title
+            let parts: Vec<&str> = item.splitn(2, ':').collect();
+            let title = parts[0].trim().to_string();
+            let description = parts.get(1).map(|s| s.trim().to_string()).unwrap_or_else(|| "No description provided".to_string());
+            
+            SuggestedComplianceItem {
+                title,
+                description,
+                risk_level: "medium".to_string(), // Default risk
+                confidence: 0.8,
+            }
+        }).collect()
     }
 
     fn parse_risk_response(&self, response: &str) -> AppResult<(i32, String, f32)> {
@@ -273,9 +297,22 @@ impl AiService {
             .map(|section| {
                 section
                     .lines()
-                    .take(5)
-                    .filter(|line| line.trim().starts_with('-') || line.trim().starts_with('*'))
-                    .map(|line| line.trim_start_matches(&['-', '*', ' '][..]).trim().to_string())
+                    .take(10) // Increase lookahead
+                    .filter(|line| {
+                        let trimmed = line.trim();
+                        !trimmed.is_empty() && (
+                            trimmed.starts_with('-') || 
+                            trimmed.starts_with('*') || 
+                            trimmed.chars().next().map_or(false, |c| c.is_numeric()) // Allow numbered lists
+                        )
+                    })
+                    .map(|line| {
+                        // Remove bullets or numbers (e.g., "1. " or "- ")
+                        line.trim()
+                            .trim_start_matches(|c: char| c == '-' || c == '*' || c.is_numeric() || c == '.')
+                            .trim()
+                            .to_string()
+                    })
                     .collect()
             })
             .unwrap_or_default()
