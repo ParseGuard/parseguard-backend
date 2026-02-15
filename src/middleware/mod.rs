@@ -1,1 +1,3 @@
-// Middleware module - auth, logging, etc.
+pub mod auth;
+
+pub use auth::{auth_middleware, AuthUser};

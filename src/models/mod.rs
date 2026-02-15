@@ -1,3 +1,3 @@
 pub mod user;
 
-pub use user::{AuthResponse, CreateUserDto, LoginDto, User, UserResponse};
+pub use user::{AuthResponse, Claims, CreateUserDto, LoginDto, User, UserResponse};

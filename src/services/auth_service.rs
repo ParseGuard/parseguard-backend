@@ -1,33 +1,17 @@
 use chrono::{Duration, Utc};
 use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation};
-use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::error::{AppError, AppResult};
-
-/// JWT Claims structure
-///
-/// Contains the data embedded in the JWT token
-#[derive(Debug, Serialize, Deserialize)]
-pub struct Claims {
-    /// Subject (user ID)
-    pub sub: String,
-    
-    /// Email address
-    pub email: String,
-    
-    /// Expiration time (Unix timestamp)
-    pub exp: usize,
-    
-    /// Issued at (Unix timestamp)
-    pub iat: usize,
-}
+use crate::{
+    error::{AppError, AppResult},
+    models::Claims,
+};
 
 /// Auth service for JWT operations
 ///
-/// Handles token generation and validation
+/// Handles token generation, validation, and password hashing
 pub struct AuthService {
-    /// JWT secret key
+    /// JWT secret key for signing tokens
     secret: String,
 }
 

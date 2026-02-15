@@ -29,6 +29,24 @@ pub struct User {
     pub updated_at: DateTime<Utc>,
 }
 
+/// JWT Claims structure
+///
+/// Contains the data embedded in JWT tokens for authentication
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Claims {
+    /// Subject (user ID)
+    pub sub: String,
+    
+    /// Email address
+    pub email: String,
+    
+    /// Expiration time (Unix timestamp)
+    pub exp: usize,
+    
+    /// Issued at (Unix timestamp)
+    pub iat: usize,
+}
+
 /// DTO for user registration
 ///
 /// Used when creating a new user account
