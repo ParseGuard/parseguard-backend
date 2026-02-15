@@ -44,27 +44,29 @@ async fn main() -> AppResult<()> {
     tracing::info!("Database migrations completed");
 
     // Create CORS layer
-    let cors = CorsLayer::new()
+    let cors_layer = CorsLayer::new()
         .allow_origin(Any)
         .allow_methods(Any)
         .allow_headers(Any);
 
-    // Build application router
+    // Create AppState
+    let state = AppState {
+        pool: pool.clone(),
+        config: config.clone(),
+    };
+
+    //Build application router
     let app = Router::new()
         .route("/health", get(health_check))
-        .nest("/api", api::router())
-        .layer(cors)
-        .layer(TraceLayer::new_for_http())
-        .with_state(AppState {
-            pool: pool.clone(),
-            config: config.clone(),
-        });
+        .nest("/api", api::create_router(state))
+        .layer(cors_layer)
+        .layer(TraceLayer::new_for_http());
 
     // Start server
-    let addr = SocketAddr::from(([0, 0, 0, 0], config.port));
+    let addr = format!("0.0.0.0:{}", config.port);
     tracing::info!("Server listening on {}", addr);
 
-    let listener = tokio::net::TcpListener::bind(addr).await?;
+    let listener = tokio::net::TcpListener::bind(&addr).await?;
     axum::serve(listener, app).await?;
 
     Ok(())

@@ -1,10 +1,10 @@
-use axum::{extract::State, http::StatusCode, Json};
+use axum::{extract::{Extension, State}, http::StatusCode, Json};
 use validator::Validate;
 
 use crate::{
     db::repository::UserRepository,
     error::{AppError, AppResult},
-    models::{AuthResponse, CreateUserDto, LoginDto, UserResponse},
+    models::{AuthResponse, Claims, CreateUserDto, LoginDto, UserResponse},
     services::AuthService,
     AppState,
 };
@@ -95,6 +95,45 @@ pub async fn login(
     }
 
     // Generate JWT token
+    let token = auth_service.generate_token(user.id, &user.email)?;
+
+    Ok(Json(AuthResponse {
+        user: UserResponse::from(user),
+        access_token: token,
+    }))
+}
+
+/// Refresh JWT token
+///
+/// # Arguments
+///
+/// * `state` - Application state
+/// * `claims` - Authenticated user claims from middleware
+///
+/// # Returns
+///
+/// New JWT token
+///
+/// # Errors
+///
+/// Returns authentication error if user not found
+pub async fn refresh(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+) -> AppResult<Json<AuthResponse>> {
+    let user_id = uuid::Uuid::parse_str(&claims.sub)
+        .map_err(|_| AppError::Internal("Invalid user ID in token".to_string()))?;
+
+    let user_repo = UserRepository::new(state.pool.clone());
+    let auth_service = AuthService::new(state.config.jwt_secret.clone());
+
+    // Verify user still exists
+    let user = user_repo
+        .find_by_id(user_id)
+        .await?
+        .ok_or_else(|| AppError::Auth("User not found".to_string()))?;
+
+    // Generate new JWT token
     let token = auth_service.generate_token(user.id, &user.email)?;
 
     Ok(Json(AuthResponse {
