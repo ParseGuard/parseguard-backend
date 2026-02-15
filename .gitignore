@@ -1,0 +1,30 @@
+# Rust
+/target
+**/*.rs.bk
+*.pdb
+
+# Environment
+.env
+.env.local
+.env.production
+
+# IDE
+.idea
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+*.swp
+*.swo
+*~
+
+#OS
+.DS_Store
+Thumbs.db
+
+# Database
+*.db
+*.db-shm
+*.db-wal
+
+# Logs
+*.log
