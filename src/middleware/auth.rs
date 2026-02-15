@@ -33,23 +33,40 @@ pub async fn auth_middleware(
     mut request: Request,
     next: Next,
 ) -> AppResult<Response> {
-    // Extract Authorization header
-    let auth_header = request
-        .headers()
-        .get(header::AUTHORIZATION)
-        .and_then(|h| h.to_str().ok())
-        .ok_or_else(|| {
-            error!("❌ Auth Failed: Missing authorization header");
-            AppError::Auth("Missing authorization header".to_string())
-        })?;
+    // 1. Try Authorization header first
+    let token = if let Some(auth_header) = request.headers().get(header::AUTHORIZATION) {
+        auth_header.to_str()
+            .ok()
+            .and_then(|h| h.strip_prefix("Bearer "))
+            .map(|t| t.to_string())
+    } else {
+        None
+    };
 
-    // Check Bearer scheme
-    let token = auth_header
-        .strip_prefix("Bearer ")
-        .ok_or_else(|| {
-            error!("❌ Auth Failed: Invalid authorization header format (expected 'Bearer <token>')");
-            AppError::Auth("Invalid authorization header format".to_string())
-        })?;
+    // 2. Fallback to Cookie header
+    let token = token.or_else(|| {
+        request.headers()
+            .get(header::COOKIE)
+            .and_then(|c| c.to_str().ok())
+            .and_then(|cookie_str| {
+                cookie_str
+                    .split(';')
+                    .find_map(|s| {
+                        let parts: Vec<&str> = s.trim().split('=').collect();
+                        if parts.len() == 2 && parts[0] == "auth_token" {
+                            Some(parts[1].to_string())
+                        } else {
+                            None
+                        }
+                    })
+            })
+    });
+
+    // 3. Validate token
+    let token = token.ok_or_else(|| {
+        error!("❌ Auth Failed: No token found in Authorization header or Cookie");
+        AppError::Auth("Missing authentication token".to_string())
+    })?;
 
     // Get JWT secret from environment
     let jwt_secret = std::env::var("JWT_SECRET")
@@ -58,7 +75,7 @@ pub async fn auth_middleware(
     // Validate token
     let auth_service = AuthService::new(jwt_secret);
     
-    match auth_service.validate_token(token) {
+    match auth_service.validate_token(&token) {
         Ok(claims) => {
             // Add claims to request extensions for handlers to access
             request.extensions_mut().insert(claims);

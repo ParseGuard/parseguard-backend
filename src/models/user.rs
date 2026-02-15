@@ -126,5 +126,6 @@ pub struct AuthResponse {
     pub user: UserResponse,
     
     /// JWT access token
-    pub access_token: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub access_token: Option<String>,
 }
