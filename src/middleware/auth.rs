@@ -38,19 +38,29 @@ pub async fn auth_middleware(
 ) -> AppResult<Response> {
     // 1. Try Authorization header first
     let token = if let Some(auth_header) = request.headers().get(header::AUTHORIZATION) {
+        println!("🔍 [Auth Middleware] Found Authorization Header: {:?}", auth_header);
         auth_header.to_str()
             .ok()
             .and_then(|h| h.strip_prefix("Bearer "))
             .map(|t| t.to_string())
     } else {
+        println!("⚠️ [Auth Middleware] No Authorization Header");
         None
     };
 
+    // Always log cookies for debugging
+    if let Some(cookies) = request.headers().get(header::COOKIE) {
+         println!("🍪 [Auth Middleware] All Cookies: {:?}", cookies);
+    } else {
+         println!("⚠️ [Auth Middleware] No Cookie header found");
+    }
+
     // 2. Fallback to Cookie header
     let token = token.or_else(|| {
-        request.headers()
-            .get(header::COOKIE)
-            .and_then(|c| c.to_str().ok())
+        let cookies = request.headers().get(header::COOKIE);
+        println!("🔍 [Auth Middleware] Checking Cookies: {:?}", cookies);
+        
+        cookies.and_then(|c| c.to_str().ok())
             .and_then(|cookie_str| {
                 cookie_str
                     .split(';')
@@ -65,6 +75,12 @@ pub async fn auth_middleware(
             })
     });
 
+    if let Some(ref t) = token {
+        println!("✅ [Auth Middleware] Token extracted (len={})", t.len());
+    } else {
+        println!("❌ [Auth Middleware] Token extraction failed");
+    }
+
     // 3. Validate token
     let token = token.ok_or_else(|| {
         error!("❌ Auth Failed: No token found in Authorization header or Cookie");
@@ -76,11 +92,13 @@ pub async fn auth_middleware(
     
     match auth_service.validate_token(&token) {
         Ok(claims) => {
+            println!("✅ [Auth Middleware] Token validated for user: {}", claims.sub);
             // Add claims to request extensions for handlers to access
             request.extensions_mut().insert(claims);
             Ok(next.run(request).await)
         }
         Err(e) => {
+            println!("❌ [Auth Middleware] Validation Error: {}", e);
             error!("❌ Auth Failed: Token validation failed: {}", e);
             // DEBUG: Log the token that failed (careful with logs in prod)
             tracing::debug!("Failed token: {}", token); 
