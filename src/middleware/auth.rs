@@ -1,5 +1,5 @@
 use axum::{
-    extract::Request,
+    extract::{Request, State},
     http::header,
     middleware::Next,
     response::Response,
@@ -11,14 +11,16 @@ use crate::{
     error::{AppError, AppResult},
     models::Claims,
     services::AuthService,
+    AppState,
 };
 
 /// Auth middleware for protected routes
 ///
-/// Extracts and validates JWT token from Authorization header
+/// Extracts and validates JWT token from Authorization header or Cookie
 ///
 /// # Arguments
 ///
+/// * `state` - Application state
 /// * `request` - HTTP request
 /// * `next` - Next middleware/handler
 ///
@@ -30,6 +32,7 @@ use crate::{
 ///
 /// Returns 401 if token is missing or invalid
 pub async fn auth_middleware(
+    State(state): State<AppState>,
     mut request: Request,
     next: Next,
 ) -> AppResult<Response> {
@@ -68,12 +71,8 @@ pub async fn auth_middleware(
         AppError::Auth("Missing authentication token".to_string())
     })?;
 
-    // Get JWT secret from environment
-    let jwt_secret = std::env::var("JWT_SECRET")
-        .unwrap_or_else(|_| "default-secret-key-change-in-production".to_string());
-
-    // Validate token
-    let auth_service = AuthService::new(jwt_secret);
+    // Validate token using secret from state
+    let auth_service = AuthService::new(state.config.jwt_secret.clone());
     
     match auth_service.validate_token(&token) {
         Ok(claims) => {
@@ -83,6 +82,8 @@ pub async fn auth_middleware(
         }
         Err(e) => {
             error!("❌ Auth Failed: Token validation failed: {}", e);
+            // DEBUG: Log the token that failed (careful with logs in prod)
+            tracing::debug!("Failed token: {}", token); 
             Err(e)
         }
     }

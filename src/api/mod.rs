@@ -53,7 +53,7 @@ pub fn create_router(state: AppState) -> Router {
         .route("/risk-scores/:id", get(risk_scores::get_score))
         .route("/risk-scores/:id", put(risk_scores::update_score))
         .route("/risk-scores/:id", delete(risk_scores::delete_score))
-        .route_layer(middleware::from_fn(auth_middleware));
+        .route_layer(middleware::from_fn_with_state(state.clone(), auth_middleware));
 
     // Combine routes
     Router::new()
