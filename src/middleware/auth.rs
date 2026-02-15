@@ -1,6 +1,6 @@
 use axum::{
-    extract::{Request, State},
-    http::{header, StatusCode},
+    extract::Request,
+    http::header,
     middleware::Next,
     response::Response,
 };
@@ -9,7 +9,6 @@ use crate::{
     error::{AppError, AppResult},
     models::Claims,
     services::AuthService,
-    AppState,
 };
 
 /// Auth middleware for protected routes
@@ -18,7 +17,6 @@ use crate::{
 ///
 /// # Arguments
 ///
-/// * `state` - Application state with config
 /// * `request` - HTTP request
 /// * `next` - Next middleware/handler
 ///
@@ -30,7 +28,6 @@ use crate::{
 ///
 /// Returns 401 if token is missing or invalid
 pub async fn auth_middleware(
-    State(state): State<AppState>,
     mut request: Request,
     next: Next,
 ) -> AppResult<Response> {
@@ -46,8 +43,12 @@ pub async fn auth_middleware(
         .strip_prefix("Bearer ")
         .ok_or_else(|| AppError::Auth("Invalid authorization header format".to_string()))?;
 
+    // Get JWT secret from environment
+    let jwt_secret = std::env::var("JWT_SECRET")
+        .unwrap_or_else(|_| "default-secret-key-change-in-production".to_string());
+
     // Validate token
-    let auth_service = AuthService::new(state.config.jwt_secret.clone());
+    let auth_service = AuthService::new(jwt_secret);
     let claims = auth_service.validate_token(token)?;
 
     // Add claims to request extensions for handlers to access
