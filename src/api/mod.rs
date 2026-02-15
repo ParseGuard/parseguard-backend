@@ -1,4 +1,6 @@
-use axum::Router;
+use axum::{routing::post, Router};
+
+mod auth;
 
 use crate::AppState;
 
@@ -9,5 +11,6 @@ use crate::AppState;
 /// Returns an Axum Router with all API routes configured
 pub fn router() -> Router<AppState> {
     Router::new()
-        // Routes will be added here
+        .route("/auth/register", post(auth::register))
+        .route("/auth/login", post(auth::login))
 }

@@ -1,5 +1,7 @@
 use sqlx::{postgres::PgPoolOptions, PgPool};
 
+pub mod repository;
+
 use crate::error::AppResult;
 
 /// Create a PostgreSQL connection pool

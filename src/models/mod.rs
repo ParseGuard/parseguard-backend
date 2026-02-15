@@ -1,1 +1,3 @@
-// Models module - database models and DTOs will be defined here
+pub mod user;
+
+pub use user::{AuthResponse, CreateUserDto, LoginDto, User, UserResponse};

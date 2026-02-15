@@ -1,1 +1,3 @@
-// Services module - business logic and external API clients
+pub mod auth_service;
+
+pub use auth_service::{AuthService, Claims};
