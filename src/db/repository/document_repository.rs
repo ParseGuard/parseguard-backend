@@ -109,7 +109,7 @@ impl DocumentRepository {
         .bind(user_id)
         .bind(&dto.filename)
         .bind(&dto.file_path)
-        .bind(dto.file_size)
+        .bind(dto.file_size as i32)
         .bind(&dto.mime_type)
         .bind(&dto.extracted_text)
         .fetch_one(&self.pool)
