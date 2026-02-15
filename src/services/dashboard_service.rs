@@ -1,8 +1,9 @@
 use serde::Serialize;
 use sqlx::PgPool;
+use tracing::{info, instrument};
 use uuid::Uuid;
 
-use crate::error::AppResult;
+use crate::{db::repository::DashboardRepository, error::AppResult};
 
 /// Dashboard statistics
 ///
@@ -54,8 +55,8 @@ pub struct ActivityItem {
 ///
 /// Provides dashboard data and analytics
 pub struct DashboardService {
-    /// Database connection pool
-    pool: PgPool,
+    /// Dashboard repository
+    repository: DashboardRepository,
 }
 
 impl DashboardService {
@@ -69,7 +70,10 @@ impl DashboardService {
     ///
     /// New DashboardService instance
     pub fn new(pool: PgPool) -> Self {
-        Self { pool }
+        info!("📊 DashboardService started");
+        Self { 
+            repository: DashboardRepository::new(pool) 
+        }
     }
 
     /// Get dashboard statistics for a user
@@ -85,49 +89,28 @@ impl DashboardService {
     /// # Errors
     ///
     /// Returns database error if queries fail
+    #[instrument(skip(self))]
     pub async fn get_stats(&self, user_id: Uuid) -> AppResult<DashboardStats> {
-        // Get compliance item counts
-        let compliance_stats: (i64, i64, i64, i64, i64) = sqlx::query_as(
-            "SELECT 
-                COUNT(*) as total,
-                COUNT(*) FILTER (WHERE status = 'pending') as pending,
-                COUNT(*) FILTER (WHERE status = 'in_progress') as in_progress,
-                COUNT(*) FILTER (WHERE status = 'completed') as completed,
-                COUNT(*) FILTER (WHERE status = 'expired') as expired
-             FROM compliance_items
-             WHERE user_id = $1"
-        )
-        .bind(user_id)
-        .fetch_one(&self.pool)
-        .await?;
-
-        // Get document counts
-        let document_stats: (i64, i64) = sqlx::query_as(
-            "SELECT 
-                COUNT(*) as total,
-                COUNT(*) FILTER (WHERE ai_analysis IS NOT NULL) as analyzed
-             FROM documents
-             WHERE user_id = $1"
-        )
-        .bind(user_id)
-        .fetch_one(&self.pool)
-        .await?;
+        info!("Fetching stats for user: {}", user_id);
+        
+        let compliance_stats = self.repository.get_compliance_stats(user_id).await?;
+        let document_stats = self.repository.get_document_stats(user_id).await?;
 
         // Calculate compliance score (percentage of completed items)
-        let compliance_score = if compliance_stats.0 > 0 {
-            (compliance_stats.3 as f64 / compliance_stats.0 as f64) * 100.0
+        let compliance_score = if compliance_stats.total > 0 {
+            (compliance_stats.completed as f64 / compliance_stats.total as f64) * 100.0
         } else {
             0.0
         };
 
         Ok(DashboardStats {
-            total_compliance_items: compliance_stats.0,
-            pending_items: compliance_stats.1,
-            in_progress_items: compliance_stats.2,
-            completed_items: compliance_stats.3,
-            expired_items: compliance_stats.4,
-            total_documents: document_stats.0,
-            analyzed_documents: document_stats.1,
+            total_compliance_items: compliance_stats.total,
+            pending_items: compliance_stats.pending,
+            in_progress_items: compliance_stats.in_progress,
+            completed_items: compliance_stats.completed,
+            expired_items: compliance_stats.expired,
+            total_documents: document_stats.total,
+            analyzed_documents: document_stats.analyzed,
             compliance_score,
         })
     }
@@ -146,35 +129,31 @@ impl DashboardService {
     /// # Errors
     ///
     /// Returns database error if queries fail
+    #[instrument(skip(self))]
     pub async fn get_recent_activity(
         &self,
         user_id: Uuid,
         limit: i64,
     ) -> AppResult<Vec<ActivityItem>> {
-        // Combine compliance and document activities
-        let activities = sqlx::query_as::<_, (Uuid, String, String, chrono::DateTime<chrono::Utc>)>(
-            "SELECT id, 'compliance_created' as activity_type, title, created_at as timestamp
-             FROM compliance_items
-             WHERE user_id = $1
-             UNION ALL
-             SELECT id, 'document_uploaded' as activity_type, filename as title, uploaded_at as timestamp
-             FROM documents
-             WHERE user_id = $1
-             ORDER BY timestamp DESC
-             LIMIT $2"
-        )
-        .bind(user_id)
-        .bind(limit)
-        .fetch_all(&self.pool)
-        .await?;
+        info!("Fetching recent activity for user: {} (limit: {})", user_id, limit);
+        
+        let activities = self.repository.get_recent_activity(user_id, limit).await?;
 
         Ok(activities
             .into_iter()
-            .map(|(id, activity_type, title, timestamp)| ActivityItem {
-                id,
-                activity_type,
-                title,
-                timestamp,
+            .filter_map(|item| {
+                if let (Some(id), Some(activity_type), Some(title), Some(timestamp)) = 
+                    (item.id, item.activity_type, item.title, item.timestamp) 
+                {
+                    Some(ActivityItem {
+                        id,
+                        activity_type,
+                        title,
+                        timestamp,
+                    })
+                } else {
+                    None
+                }
             })
             .collect())
     }

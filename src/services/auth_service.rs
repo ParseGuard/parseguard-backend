@@ -1,5 +1,6 @@
 use chrono::{Duration, Utc};
 use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation};
+use tracing::{info, instrument};
 use uuid::Uuid;
 
 use crate::{
@@ -26,6 +27,7 @@ impl AuthService {
     ///
     /// New AuthService instance
     pub fn new(secret: String) -> Self {
+        info!("🚀 AuthService started");
         Self { secret }
     }
 
@@ -43,7 +45,9 @@ impl AuthService {
     /// # Errors
     ///
     /// Returns error if token encoding fails
+    #[instrument(skip(self))]
     pub fn generate_token(&self, user_id: Uuid, email: &str) -> AppResult<String> {
+        info!("Generating token for user: {}", email);
         let now = Utc::now();
         let expires_at = now + Duration::hours(24); // 24 hour expiry
 
@@ -76,7 +80,10 @@ impl AuthService {
     /// # Errors
     ///
     /// Returns error if token is invalid or expired
+    #[instrument(skip(self, token))]
     pub fn validate_token(&self, token: &str) -> AppResult<Claims> {
+        // Don't log the full token for security, just that we are validating
+        info!("Validating token");
         let token_data = decode::<Claims>(
             token,
             &DecodingKey::from_secret(self.secret.as_bytes()),
@@ -99,7 +106,9 @@ impl AuthService {
     /// # Errors
     ///
     /// Returns error if hashing fails
+    #[instrument(skip(self, password))]
     pub fn hash_password(&self, password: &str) -> AppResult<String> {
+        info!("Hashing password");
         let hash = bcrypt::hash(password, bcrypt::DEFAULT_COST)
             .map_err(|e| AppError::Internal(format!("Password hashing failed: {}", e)))?;
         Ok(hash)
@@ -119,7 +128,9 @@ impl AuthService {
     /// # Errors
     ///
     /// Returns error if verification process fails
+    #[instrument(skip(self, password, hash))]
     pub fn verify_password(&self, password: &str, hash: &str) -> AppResult<bool> {
+        info!("Verifying password");
         let valid = bcrypt::verify(password, hash)
             .map_err(|e| AppError::Internal(format!("Password verification failed: {}", e)))?;
         Ok(valid)

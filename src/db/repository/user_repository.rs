@@ -1,4 +1,5 @@
 use sqlx::PgPool;
+use tracing::instrument;
 use uuid::Uuid;
 
 use crate::{error::AppResult, models::{CreateUserDto, User}};
@@ -38,6 +39,7 @@ impl UserRepository {
     /// # Errors
     ///
     /// Returns database error if query fails
+    #[instrument(skip(self))]
     pub async fn find_by_email(&self, email: &str) -> AppResult<Option<User>> {
         let user = sqlx::query_as::<_, User>(
             "SELECT id, email, password_hash, full_name, created_at, updated_at
@@ -64,6 +66,7 @@ impl UserRepository {
     /// # Errors
     ///
     /// Returns database error if query fails
+    #[instrument(skip(self))]
     pub async fn find_by_id(&self, id: Uuid) -> AppResult<Option<User>> {
         let user = sqlx::query_as::<_, User>(
             "SELECT id, email, password_hash, full_name, created_at, updated_at
@@ -91,6 +94,7 @@ impl UserRepository {
     /// # Errors
     ///
     /// Returns database error if insertion fails (e.g., duplicate email)
+    #[instrument(skip(self, password_hash))]
     pub async fn create(&self, dto: &CreateUserDto, password_hash: String) -> AppResult<User> {
         let user = sqlx::query_as::<_, User>(
             "INSERT INTO users (email, password_hash, full_name)
@@ -119,6 +123,7 @@ impl UserRepository {
     /// # Errors
     ///
     /// Returns database error if query fails
+    #[instrument(skip(self))]
     pub async fn email_exists(&self, email: &str) -> AppResult<bool> {
         let exists: bool = sqlx::query_scalar(
             "SELECT EXISTS(SELECT 1 FROM users WHERE email = $1)"

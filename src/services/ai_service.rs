@@ -1,6 +1,7 @@
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
+use tracing::{info, instrument};
 
 use crate::error::{AppError, AppResult};
 
@@ -82,6 +83,7 @@ impl AiService {
     ///
     /// AI service instance
     pub fn new(ollama_url: String) -> Self {
+        info!("🤖 AiService started");
         Self {
             client: Client::new(),
             base_url: ollama_url,
@@ -101,7 +103,9 @@ impl AiService {
     /// # Errors
     ///
     /// Returns error if AI request fails
+    #[instrument(skip(self, text))]
     pub async fn analyze_document(&self, text: &str) -> AppResult<DocumentAnalysis> {
+        info!("Analyzing document (length: {})", text.len());
         let prompt = self.create_analysis_prompt(text);
 
         let response = self.generate(&prompt, "llama2").await?;
@@ -124,11 +128,13 @@ impl AiService {
     /// # Errors
     ///
     /// Returns error if AI request fails
+    #[instrument(skip(self))]
     pub async fn assess_risk(
         &self,
         title: &str,
         description: Option<&str>,
     ) -> AppResult<(i32, String, f32)> {
+        info!("Assessing risk for: {}", title);
         let prompt = format!(
             "Analyze the following compliance item and provide a risk assessment:\n\
              Title: {}\n\
@@ -164,7 +170,9 @@ impl AiService {
     /// # Errors
     ///
     /// Returns error if request fails
+    #[instrument(skip(self, prompt))]
     async fn generate(&self, prompt: &str, model: &str) -> AppResult<String> {
+        info!("Generating with model: {}", model);
         let url = format!("{}/api/generate", self.base_url);
 
         let request = AnalysisRequest {

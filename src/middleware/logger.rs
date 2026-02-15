@@ -22,7 +22,7 @@ pub async fn logger_middleware(req: Request, next: Next) -> Response {
 
     // Log request start with emoji
     info!(
-        "🔵 Incoming: {} {} | Request ID: {}",
+        "\n🚀 INCOMING REQUEST 🚀\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nMethod: {}\nPath:   {}\nID:     {}\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
         method,
         path,
         request_id
@@ -44,45 +44,43 @@ pub async fn logger_middleware(req: Request, next: Next) -> Response {
         // Try to log as JSON
         if !bytes.is_empty() {
             if let Ok(body_str) = std::str::from_utf8(&bytes) {
-                info!("📦 Request Body: {}", body_str);
-                
                 // Pretty print JSON if valid
                 if let Ok(json_value) = serde_json::from_str::<serde_json::Value>(body_str) {
                     if let Ok(pretty) = serde_json::to_string_pretty(&json_value) {
-                        info!("📋 Parsed Body:\n{}", pretty);
+                        info!("📦 REQUEST BODY:\n{}", pretty);
+                    } else {
+                        info!("📦 REQUEST BODY: {}", body_str);
                     }
+                } else {
+                    info!("📦 REQUEST BODY: {}", body_str);
                 }
             }
         }
 
         // Reconstruct request with body
         let new_body = Body::from(bytes);
-        let mut req = Request::from_parts(parts, new_body);
-        
-        // Add request ID to extensions
-        req.extensions_mut().insert(request_id);
+        let req = Request::from_parts(parts, new_body);
         
         // Process request
         let response = next.run(req).await;
         
-        log_response(&method, &path, request_id, start, &response);
+        // Log response for this path
+        log_response_internal(&method, &path, request_id, start, &response);
         
         response
     } else {
-        // For GET/DELETE, just pass through
-        let mut req = Request::from_parts(parts, body);
-        req.extensions_mut().insert(request_id);
-        
+        // For other methods, process request directly without reading body
+        let req = Request::from_parts(parts, body);
         let response = next.run(req).await;
         
-        log_response(&method, &path, request_id, start, &response);
+        log_response_internal(&method, &path, request_id, start, &response);
         
         response
     }
 }
 
-/// Log response with appropriate emoji based on status code
-fn log_response(
+/// Internal helper to log responses (to handle both main path and body logging path)
+fn log_response_internal(
     method: &axum::http::Method,
     path: &str,
     request_id: Uuid,
@@ -92,27 +90,21 @@ fn log_response(
     let duration = start.elapsed();
     let status = response.status();
 
-    if status.is_success() {
-        info!(
-            "✅ Response: {} {} | Status: {} | Duration: {:?} | Request ID: {}",
-            method, path, status.as_u16(), duration, request_id
-        );
-    } else if status.is_client_error() {
-        warn!(
-            "❌ Response: {} {} | Status: {} | Duration: {:?} | Request ID: {}",
-            method, path, status.as_u16(), duration, request_id
-        );
-    } else if status.is_server_error() {
-        error!(
-            "🔥 Response: {} {} | Status: {} | Duration: {:?} | Request ID: {}",
-            method, path, status.as_u16(), duration, request_id
-        );
-    } else {
-        info!(
-            "ℹ️  Response: {} {} | Status: {} | Duration: {:?} | Request ID: {}",
-            method, path, status.as_u16(), duration, request_id
-        );
-    }
+    let icon = if status.is_success() { "✅" } else { "❌" };
+    let color_line = if status.is_success() { "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" } else { "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" };
+
+    info!(
+        "\n{} RESPONSE SENDING {}\n{}\nMethod:   {}\nPath:     {}\nStatus:   {} ({})\nDuration: {:?}\nID:       {}\n{}",
+        icon, icon,
+        color_line,
+        method,
+        path,
+        status.as_u16(),
+        status,
+        duration,
+        request_id,
+        color_line
+    );
 }
 
 /// Extract request ID from request extensions
