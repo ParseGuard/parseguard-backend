@@ -1,22 +1,26 @@
-use serde::Deserialize;
-
-/// Application configuration loaded from environment variables
-///
-/// This struct holds all configuration values needed to run the application.
-/// Values are loaded from environment variables using dotenvy.
-#[derive(Debug, Clone, Deserialize)]
+/// Application configuration
+#[derive(Clone)]
 pub struct Config {
-    /// PostgreSQL database connection string
+    /// Database connection URL
     pub database_url: String,
     
-    /// Secret key for JWT token signing
+    /// Server port
+    pub port: u16,
+    
+    /// JWT secret key
     pub jwt_secret: String,
     
-    /// OLLAMA API base URL for AI requests
-    pub ollama_api_url: String,
+    /// JWT expiration time in seconds (default: 24 hours)
+    pub jwt_expiration: i64,
     
-    /// Server port to bind to
-    pub port: u16,
+    /// Upload directory for documents
+    pub upload_dir: String,
+    
+    /// Maximum file upload size in bytes (default: 50MB)
+    pub max_file_size: usize,
+    
+    /// OLLAMA API URL for AI processing
+    pub ollama_url: String,
 }
 
 impl Config {
@@ -24,32 +28,35 @@ impl Config {
     ///
     /// # Returns
     ///
-    /// Returns a `Config` instance with all required configuration values
+    /// Configuration instance
     ///
     /// # Panics
     ///
-    /// Panics if any required environment variable is missing
-    ///
-    /// # Example
-    ///
-    /// ```no_run
-    /// let config = Config::from_env();
-    /// println!("Server will run on port {}", config.port);
-    /// ```
+    /// Panics if required environment variables are missing
     pub fn from_env() -> Self {
         dotenvy::dotenv().ok();
-        
+
         Self {
             database_url: std::env::var("DATABASE_URL")
                 .expect("DATABASE_URL must be set"),
-            jwt_secret: std::env::var("JWT_SECRET")
-                .expect("JWT_SECRET must be set"),
-            ollama_api_url: std::env::var("OLLAMA_API_URL")
-                .unwrap_or_else(|_| "http://localhost:11434".to_string()),
             port: std::env::var("PORT")
                 .unwrap_or_else(|_| "8000".to_string())
                 .parse()
                 .expect("PORT must be a valid number"),
+            jwt_secret: std::env::var("JWT_SECRET")
+                .expect("JWT_SECRET must be set"),
+            jwt_expiration: std::env::var("JWT_EXPIRATION")
+                .unwrap_or_else(|_| "86400".to_string()) // 24 hours
+                .parse()
+                .expect("JWT_EXPIRATION must be a valid number"),
+            upload_dir: std::env::var("UPLOAD_DIR")
+                .unwrap_or_else(|_| "./uploads".to_string()),
+            max_file_size: std::env::var("MAX_FILE_SIZE")
+                .unwrap_or_else(|_| "52428800".to_string()) // 50MB
+                .parse()
+                .expect("MAX_FILE_SIZE must be a valid number"),
+            ollama_url: std::env::var("OLLAMA_URL")
+                .unwrap_or_else(|_| "http://localhost:11434".to_string()),
         }
     }
 }

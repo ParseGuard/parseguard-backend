@@ -55,11 +55,12 @@ async fn main() -> AppResult<()> {
         config: config.clone(),
     };
 
-    //Build application router
+    // Build application router
     let app = Router::new()
         .route("/health", get(health_check))
         .nest("/api", api::create_router(state))
         .layer(cors_layer)
+        .layer(axum::middleware::from_fn(middleware::logger_middleware))
         .layer(TraceLayer::new_for_http());
 
     // Start server
