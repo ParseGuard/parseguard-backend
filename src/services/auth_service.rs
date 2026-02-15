@@ -135,4 +135,20 @@ impl AuthService {
             .map_err(|e| AppError::Internal(format!("Password verification failed: {}", e)))?;
         Ok(valid)
     }
+
+    /// Create authentication cookie header value
+    ///
+    /// # Arguments
+    ///
+    /// * `token` - JWT token string
+    ///
+    /// # Returns
+    ///
+    /// Cookie header string
+    pub fn create_auth_cookie(&self, token: &str) -> String {
+        format!(
+            "auth_token={}; HttpOnly; Path=/; SameSite=Lax; Max-Age=604800", // 7 days
+            token
+        )
+    }
 }

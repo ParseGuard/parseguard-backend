@@ -22,14 +22,6 @@ pub struct LoginParams {
     pub return_token: bool,
 }
 
-// Helper to create cookie header
-fn create_auth_cookie(token: &str) -> String {
-    format!(
-        "auth_token={}; HttpOnly; Path=/; SameSite=Lax; Max-Age=604800", // 7 days
-        token
-    )
-}
-
 /// Register a new user
 pub async fn register(
     State(state): State<AppState>,
@@ -69,7 +61,7 @@ pub async fn register(
     let mut headers = HeaderMap::new();
     headers.insert(
         header::SET_COOKIE,
-        create_auth_cookie(&token).parse().unwrap(),
+        auth_service.create_auth_cookie(&token).parse().unwrap(),
     );
 
     let access_token = if params.return_token { Some(token) } else { None };
@@ -116,7 +108,7 @@ pub async fn login(
     let mut headers = HeaderMap::new();
     headers.insert(
         header::SET_COOKIE,
-        create_auth_cookie(&token).parse().unwrap(),
+        auth_service.create_auth_cookie(&token).parse().unwrap(),
     );
 
     let access_token = if params.return_token { Some(token) } else { None };
@@ -154,7 +146,7 @@ pub async fn refresh(
     let mut headers = HeaderMap::new();
     headers.insert(
         header::SET_COOKIE,
-        create_auth_cookie(&token).parse().unwrap(),
+        auth_service.create_auth_cookie(&token).parse().unwrap(),
     );
 
     Ok((

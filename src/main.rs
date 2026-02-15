@@ -1,12 +1,3 @@
-mod config;
-mod error;
-mod api;
-mod db;
-mod models;
-mod middleware;
-mod services;
-mod utils;
-
 use axum::{
     routing::get,
     Router,
@@ -18,8 +9,14 @@ use tower_http::{
 };
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
-use config::Config;
-use error::AppResult;
+use parseguard_backend::{
+    api,
+    config::Config,
+    db,
+    error::AppResult,
+    middleware,
+    AppState,
+};
 
 #[tokio::main]
 async fn main() -> AppResult<()> {
@@ -46,9 +43,25 @@ async fn main() -> AppResult<()> {
 
     // Create CORS layer
     let cors_layer = CorsLayer::new()
-        .allow_origin(Any)
-        .allow_methods(Any)
-        .allow_headers(Any);
+        .allow_origin("http://localhost:5173".parse::<axum::http::HeaderValue>().unwrap())
+        .allow_methods(
+            vec![
+                axum::http::Method::GET,
+                axum::http::Method::POST,
+                axum::http::Method::PUT,
+                axum::http::Method::DELETE,
+                axum::http::Method::OPTIONS,
+            ]
+        )
+        .allow_headers(
+            vec![
+                axum::http::header::AUTHORIZATION,
+                axum::http::header::CONTENT_TYPE,
+                axum::http::header::ACCEPT,
+                axum::http::header::COOKIE,
+            ]
+        )
+        .allow_credentials(true);
 
     // Create AppState
     let state = AppState {
@@ -85,14 +98,4 @@ async fn health_check() -> axum::Json<serde_json::Value> {
         "service": "parseguard-backend",
         "version": env!("CARGO_PKG_VERSION"),
     }))
-}
-
-/// Application state shared across handlers
-#[derive(Clone)]
-pub struct AppState {
-    /// Database connection pool
-    pub pool: sqlx::PgPool,
-    
-    /// Application configuration
-    pub config: Config,
 }
