@@ -4,7 +4,6 @@ use axum::{
     middleware::Next,
     response::Response,
 };
-use bytes::Bytes;
 use std::time::Instant;
 use tracing::{info, warn, error};
 use uuid::Uuid;
@@ -38,7 +37,7 @@ pub async fn logger_middleware(req: Request, next: Next) -> Response {
             Ok(bytes) => bytes,
             Err(err) => {
                 error!("❌ Failed to read request body: {}", err);
-                Bytes::new()
+                axum::body::Bytes::new()
             }
         };
 

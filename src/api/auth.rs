@@ -29,7 +29,7 @@ pub async fn register(
 ) -> AppResult<(StatusCode, Json<AuthResponse>)> {
     // Log incoming registration attempt
     tracing::info!("🔐 Registration attempt | Email: {}", dto.email);
-    tracing::debug!("📝 Registration data | Name: {}, Email: {}", dto.name, dto.email);
+    tracing::debug!("📝 Registration data | Name: {}, Email: {}", dto.full_name, dto.email);
     
     // Validate input
     dto.validate()
