@@ -8,6 +8,7 @@ mod auth;
 mod compliance;
 mod dashboard;
 mod documents;
+mod risk_scores;
 
 use crate::{middleware::auth_middleware, AppState};
 
@@ -45,6 +46,13 @@ pub fn create_router(state: AppState) -> Router {
         // Dashboard
         .route("/dashboard/stats", get(dashboard::get_stats))
         .route("/dashboard/activity", get(dashboard::get_activity))
+        // Risk Scores
+        .route("/risk-scores", get(risk_scores::list_scores))
+        .route("/risk-scores/compliance/:id", get(risk_scores::list_by_compliance))
+        .route("/risk-scores", post(risk_scores::create_score))
+        .route("/risk-scores/:id", get(risk_scores::get_score))
+        .route("/risk-scores/:id", put(risk_scores::update_score))
+        .route("/risk-scores/:id", delete(risk_scores::delete_score))
         .route_layer(middleware::from_fn(auth_middleware));
 
     // Combine routes

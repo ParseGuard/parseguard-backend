@@ -232,13 +232,12 @@ impl AiService {
         })
     }
 
-    /// Parse risk assessment response
     fn parse_risk_response(&self, response: &str) -> AppResult<(i32, String, f32)> {
         let score = self.extract_number(response, "SCORE:").unwrap_or(50);
         let level = self
             .extract_value(response, "LEVEL:")
             .unwrap_or_else(|| "medium".to_string());
-        let reasoning = self
+        let _reasoning = self
             .extract_section(response, "REASONING:")
             .unwrap_or_else(|| response.to_string());
 
