@@ -23,6 +23,7 @@ pub async fn spawn_app() -> TestApp {
 
     // Build application router
     let app = axum::Router::new()
+        .route("/health", axum::routing::get(parseguard_backend::health_check))
         .nest("/api", parseguard_backend::api::create_router(state));
     
     // Spawn the server

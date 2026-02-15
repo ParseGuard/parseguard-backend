@@ -1,12 +1,11 @@
 use axum::{
     body::Body,
     extract::Request,
-    http::{HeaderMap, HeaderValue},
     middleware::Next,
     response::Response,
 };
 use std::time::Instant;
-use tracing::{info, warn, error};
+use tracing::{info, error};
 use uuid::Uuid;
 
 /// Custom header for request ID

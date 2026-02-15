@@ -19,3 +19,16 @@ pub struct AppState {
     /// Application configuration
     pub config: Config,
 }
+
+/// Health check endpoint
+///
+/// # Returns
+///
+/// Returns a simple JSON response indicating the service is healthy
+pub async fn health_check() -> axum::Json<serde_json::Value> {
+    axum::Json(serde_json::json!({
+        "status": "healthy",
+        "service": "parseguard-backend",
+        "version": env!("CARGO_PKG_VERSION"),
+    }))
+}

@@ -1,11 +1,5 @@
-use std::sync::Arc;
-use axum::{
-    async_trait,
-    extract::{FromRef, FromRequestParts},
-    http::request::Parts,
-};
+use axum::async_trait;
 use sqlx::PgPool;
-use crate::AppState;
 
 /// Base trait for all services
 #[async_trait]

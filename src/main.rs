@@ -2,9 +2,8 @@ use axum::{
     routing::get,
     Router,
 };
-use std::net::SocketAddr;
 use tower_http::{
-    cors::{Any, CorsLayer},
+    cors::CorsLayer,
     trace::TraceLayer,
 };
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
@@ -71,7 +70,7 @@ async fn main() -> AppResult<()> {
 
     // Build application router
     let app = Router::new()
-        .route("/health", get(health_check))
+        .route("/health", get(parseguard_backend::health_check))
         .nest("/api", api::create_router(state))
         .layer(cors_layer)
         .layer(axum::middleware::from_fn(middleware::logger_middleware))
@@ -87,15 +86,4 @@ async fn main() -> AppResult<()> {
     Ok(())
 }
 
-/// Health check endpoint
-///
-/// # Returns
-///
-/// Returns a simple JSON response indicating the service is healthy
-async fn health_check() -> axum::Json<serde_json::Value> {
-    axum::Json(serde_json::json!({
-        "status": "healthy",
-        "service": "parseguard-backend",
-        "version": env!("CARGO_PKG_VERSION"),
-    }))
-}
+
